@@ -1,0 +1,43 @@
+name: Sync
+options:
+  bundleIdPrefix: dev.warisareshi
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  Sync:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sync
+    info:
+      path: Sync/Info.plist
+      properties:
+        CFBundleName: Sync
+        CFBundleDisplayName: Sync
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSMinimumSystemVersion: "14.0"
+        NSHighResolutionCapable: true
+        NSLocalNetworkUsageDescription: "Sync uses your local network to discover and stream audio between Macs running Sync."
+        NSBonjourServices:
+          - _syncaudio._tcp
+        LSApplicationCategoryType: public.app-category.music
+    entitlements:
+      path: Sync/Sync.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.server: true
+        com.apple.security.network.client: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.warisareshi.Sync
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_ENTITLEMENTS: Sync/Sync.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sync/Info.plist
