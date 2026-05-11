@@ -81,10 +81,18 @@ struct ContentView: View {
             HStack {
                 Image(systemName: model.clockSynced ? "checkmark.circle.fill" : "clock.arrow.2.circlepath")
                     .foregroundStyle(model.clockSynced ? .green : .orange)
-                Text(model.clockSynced
-                     ? String(format: "Synced — offset %.2f ms", model.clockOffset * 1000)
-                     : "Calibrating clock...")
+                Text(model.clockSynced ? "Synced" : "Calibrating clock…")
                     .font(.headline)
+            }
+            if model.clockSynced {
+                VStack(spacing: 2) {
+                    Text(String(format: "RTT %.2f ms · offset %.2f ms",
+                                model.clockRTT * 1000, model.clockOffset * 1000))
+                    Text(String(format: "Output latency %.2f ms (compensated)",
+                                model.outputLatency * 1000))
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             Button("Stop", role: .destructive) {
                 Task { await model.stop() }

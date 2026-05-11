@@ -13,7 +13,9 @@ final class AppModel: ObservableObject {
     @Published var status: String = "Idle"
     @Published var peerCount: Int = 0
     @Published var clockOffset: Double = 0
+    @Published var clockRTT: Double = 0
     @Published var clockSynced: Bool = false
+    @Published var outputLatency: Double = 0
     @Published var isMuted: Bool = false
 
     private let capture = AudioCapture()
@@ -136,9 +138,11 @@ final class AppModel: ObservableObject {
             let t3 = CACurrentMediaTime()
             clock.record(t1: t1, t2recv: t2recv, t2send: t2send, t3: t3)
             clockOffset = clock.offset
+            clockRTT = clock.bestRTT
             clockSynced = clock.hasSync
             if clockSynced {
-                status = String(format: "Synced — offset %.2f ms", clockOffset * 1000)
+                status = String(format: "Synced — RTT %.2f ms, offset %.2f ms",
+                                clockRTT * 1000, clockOffset * 1000)
             }
 
         case .audio:
@@ -159,6 +163,7 @@ final class AppModel: ObservableObject {
 
             try? playback.ensureConfigured(sampleRate: sampleRate,
                                            channels: AVAudioChannelCount(channels))
+            outputLatency = playback.outputLatency
             let local = clock.hostToLocal(presentationHost)
             p.withUnsafeBytes { raw in
                 let base = raw.baseAddress!
@@ -178,15 +183,15 @@ final class AppModel: ObservableObject {
     }
 
     private func startPinging() {
-        // Burst 10 pings in the first ~500 ms so clock sync converges before
-        // the first audio frame arrives.
-        for i in 0..<10 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.05) { [weak self] in
+        // Burst 20 pings in the first ~500 ms (every 25 ms) so the min-RTT
+        // filter has lots of samples to pick from before the first audio chunk
+        // arrives.  Most of these land in <1 ms each on a quiet LAN.
+        for i in 0..<20 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.025) { [weak self] in
                 self?.sendPing()
             }
         }
-        // Then keep refining the offset (it's tiny on a quiet LAN, but drift
-        // happens).
+        // Then keep refining the offset.
         pingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sendPing() }
         }
