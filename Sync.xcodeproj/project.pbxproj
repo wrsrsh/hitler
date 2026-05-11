@@ -15,12 +15,14 @@
 		B6183158FFA3BB943D9F9060 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602646F912C5AE975CA772FF /* AppModel.swift */; };
 		BE7AA8681B6E050F6738E268 /* SyncApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782D17DADC486A085B02C748 /* SyncApp.swift */; };
 		D4A895A5965123A39482156B /* ClockSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D6B9BDEBEB5B068D4FDB658 /* ClockSync.swift */; };
+		DFA9D428E23A7F115E19B93B /* SystemVolume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49073F98CB5136412ECD2EED /* SystemVolume.swift */; };
 		F28969F7B9AE42CE5A0A55A1 /* WireFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D90886BBDE7568EECD889F /* WireFormat.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		095D184961CFD047BC1D668E /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
 		32D90886BBDE7568EECD889F /* WireFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireFormat.swift; sourceTree = "<group>"; };
+		49073F98CB5136412ECD2EED /* SystemVolume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemVolume.swift; sourceTree = "<group>"; };
 		602646F912C5AE975CA772FF /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		6D79E16F4F12227CDC662FAA /* AudioPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayback.swift; sourceTree = "<group>"; };
 		782D17DADC486A085B02C748 /* SyncApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncApp.swift; sourceTree = "<group>"; };
@@ -47,6 +49,7 @@
 				AF9B4CFC087BA48255B842F7 /* NetworkPeer.swift */,
 				89443F94CD364C41AFBEECBC /* Sync.entitlements */,
 				782D17DADC486A085B02C748 /* SyncApp.swift */,
+				49073F98CB5136412ECD2EED /* SystemVolume.swift */,
 				32D90886BBDE7568EECD889F /* WireFormat.swift */,
 			);
 			path = Sync;
@@ -134,6 +137,7 @@
 				10B45EFC6B4B88D8319C9200 /* NetworkHost.swift in Sources */,
 				425E52C4634FE70001F31C31 /* NetworkPeer.swift in Sources */,
 				BE7AA8681B6E050F6738E268 /* SyncApp.swift in Sources */,
+				DFA9D428E23A7F115E19B93B /* SystemVolume.swift in Sources */,
 				F28969F7B9AE42CE5A0A55A1 /* WireFormat.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

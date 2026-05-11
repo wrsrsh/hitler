@@ -14,7 +14,7 @@ final class AppModel: ObservableObject {
     @Published var peerCount: Int = 0
     @Published var clockOffset: Double = 0
     @Published var clockSynced: Bool = false
-    @Published var hostPlaysLocally: Bool = false
+    @Published var isMuted: Bool = false
 
     private let capture = AudioCapture()
     private let playback = AudioPlayback()
@@ -22,11 +22,13 @@ final class AppModel: ObservableObject {
     private let peer = NetworkPeer()
     private let clock = ClockSync()
 
-    /// How far in the future to schedule each audio chunk. Larger = more network jitter
-    /// tolerance, more startup latency. 250 ms is comfortable on a typical Wi-Fi LAN.
-    private let bufferDelay: Double = 0.25
+    /// Wall-clock delay between a sample being captured on the host and being
+    /// played on every peer.  Larger = more network jitter tolerance, more
+    /// startup latency.  ~350 ms is comfortable on Wi-Fi.
+    private let bufferDelay: Double = 0.35
 
     private var pingTimer: Timer?
+    private var didMuteOnStart = false
 
     init() {
         host.onPeerCount = { [weak self] n in
@@ -47,27 +49,22 @@ final class AppModel: ObservableObject {
         do {
             try host.start()
             try await capture.start()
-            if hostPlaysLocally {
-                try playback.ensureStarted(sampleRate: 48_000, channels: 2)
-            }
+            // Auto-mute host's own speakers so the live source doesn't echo with
+            // the peers' delayed copies.  User can unmute via the button.
+            SystemVolume.mute()
+            didMuteOnStart = true
+            isMuted = true
             mode = .host
-            status = hostPlaysLocally
-                ? "Hosting — playing locally and streaming to peers"
-                : "Hosting — streaming to peers (your own speakers play live)"
+            status = "Hosting — your Mac is muted; peers are the speakers"
         } catch {
             status = "Host failed: \(error.localizedDescription)"
         }
     }
 
     func startPeer() async {
-        do {
-            try playback.ensureStarted(sampleRate: 48_000, channels: 2)
-            peer.start()
-            mode = .peer
-            startPinging()
-        } catch {
-            status = "Peer failed: \(error.localizedDescription)"
-        }
+        peer.start()
+        mode = .peer
+        startPinging()
     }
 
     func stop() async {
@@ -77,6 +74,11 @@ final class AppModel: ObservableObject {
         host.stop()
         peer.stop()
         playback.stop()
+        if didMuteOnStart {
+            SystemVolume.unmute()
+            didMuteOnStart = false
+        }
+        isMuted = SystemVolume.isMuted()
         clockSynced = false
         clockOffset = 0
         peerCount = 0
@@ -84,7 +86,16 @@ final class AppModel: ObservableObject {
         status = "Idle"
     }
 
-    // MARK: - Host: capture → encode → broadcast → (optionally) local schedule
+    func toggleMute() {
+        if isMuted {
+            SystemVolume.unmute()
+        } else {
+            SystemVolume.mute()
+        }
+        isMuted = SystemVolume.isMuted()
+    }
+
+    // MARK: - Host: capture → encode → broadcast
 
     private func handleCaptured(_ buf: AVAudioPCMBuffer) {
         let sampleRate = buf.format.sampleRate
@@ -92,11 +103,8 @@ final class AppModel: ObservableObject {
         let frameCount = Int(buf.frameLength)
         guard frameCount > 0, channels > 0, let cd = buf.floatChannelData else { return }
 
-        // Tag with a future host-clock time. Host is its own reference, so
-        // "host time" == "local time" on the host.
         let presentationTime = CACurrentMediaTime() + bufferDelay
 
-        // Interleave the non-interleaved capture buffer.
         var interleaved = [Float](repeating: 0, count: frameCount * channels)
         interleaved.withUnsafeMutableBufferPointer { dst in
             for f in 0..<frameCount {
@@ -106,7 +114,6 @@ final class AppModel: ObservableObject {
             }
         }
 
-        // Build the wire frame.
         var w = BinaryWriter()
         w.writeF64LE(presentationTime)
         w.writeU32LE(UInt32(sampleRate))
@@ -115,22 +122,9 @@ final class AppModel: ObservableObject {
         interleaved.withUnsafeBytes { w.writeBytes($0) }
         let frame = Frame.encode(type: .audio, payload: w.data)
         host.broadcast(frame)
-
-        // Optional: schedule on host's own engine so the host is one of the speakers.
-        if hostPlaysLocally {
-            interleaved.withUnsafeBufferPointer { ptr in
-                guard let base = ptr.baseAddress else { return }
-                playback.schedule(
-                    interleavedSamples: base,
-                    frameCount: AVAudioFrameCount(frameCount),
-                    channels: channels,
-                    presentationLocalTime: presentationTime
-                )
-            }
-        }
     }
 
-    // MARK: - Peer: clock sync + audio frame scheduling
+    // MARK: - Peer: clock sync + queue audio
 
     private func handlePeerFrame(_ frame: Frame) {
         switch frame.type {
@@ -148,6 +142,11 @@ final class AppModel: ObservableObject {
             }
 
         case .audio:
+            // Drop audio until we have at least one clock-sync sample, otherwise
+            // the very first chunk's start time is unreliable and the whole
+            // stream is misaligned for the entire session.
+            guard clock.hasSync else { return }
+
             let p = frame.payload
             guard p.count >= 18 else { return }
             let presentationHost = p.readF64LE(at: 0)
@@ -158,18 +157,18 @@ final class AppModel: ObservableObject {
             let sampleBytes = frameCount * channels * MemoryLayout<Float>.size
             guard p.count >= samplesStart + sampleBytes else { return }
 
-            try? playback.ensureStarted(sampleRate: sampleRate,
-                                        channels: AVAudioChannelCount(channels))
+            try? playback.ensureConfigured(sampleRate: sampleRate,
+                                           channels: AVAudioChannelCount(channels))
             let local = clock.hostToLocal(presentationHost)
             p.withUnsafeBytes { raw in
                 let base = raw.baseAddress!
                     .advanced(by: samplesStart)
                     .assumingMemoryBound(to: Float.self)
-                playback.schedule(
-                    interleavedSamples: base,
+                playback.enqueue(
+                    interleaved: base,
                     frameCount: AVAudioFrameCount(frameCount),
                     channels: channels,
-                    presentationLocalTime: local
+                    startAt: local
                 )
             }
 
@@ -179,7 +178,16 @@ final class AppModel: ObservableObject {
     }
 
     private func startPinging() {
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        // Burst 10 pings in the first ~500 ms so clock sync converges before
+        // the first audio frame arrives.
+        for i in 0..<10 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.05) { [weak self] in
+                self?.sendPing()
+            }
+        }
+        // Then keep refining the offset (it's tiny on a quiet LAN, but drift
+        // happens).
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sendPing() }
         }
     }

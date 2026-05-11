@@ -25,7 +25,7 @@ struct ContentView: View {
             }
         }
         .padding(32)
-        .frame(minWidth: 380, minHeight: 280)
+        .frame(minWidth: 400, minHeight: 300)
     }
 
     private var idleControls: some View {
@@ -47,26 +47,28 @@ struct ContentView: View {
                     .padding(.vertical, 6)
             }
             .buttonStyle(.bordered)
-
-            Toggle("Host plays through its own speakers (needs muted source)", isOn: $model.hostPlaysLocally)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
         }
     }
 
     private var hostControls: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             HStack {
                 Image(systemName: "wave.3.right")
                 Text("Peers connected: \(model.peerCount)")
                     .font(.headline)
             }
-            Text("Play anything (Apple Music, Spotify, YouTube...). All connected Macs stream in sync.")
+            Text("Play anything (Apple Music, Spotify, browser…). Peers stream it in sync.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            Button {
+                model.toggleMute()
+            } label: {
+                Label(model.isMuted ? "Unmute This Mac" : "Mute This Mac",
+                      systemImage: model.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+            }
+
             Button("Stop", role: .destructive) {
                 Task { await model.stop() }
             }
@@ -91,4 +93,3 @@ struct ContentView: View {
         }
     }
 }
-
